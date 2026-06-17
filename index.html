@@ -1,0 +1,852 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="h-full bg-slate-50">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>预算日均消费计算器</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['-apple-system', 'BlinkMacSystemFont', '"Segoe UI"', 'Roboto', 'Helvetica', 'Arial', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- iOS Web App Meta Tags -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <style>
+        /* 针对 iOS Safari 点击延迟和多余高亮进行优化 */
+        button, a, input, select {
+            -webkit-tap-highlight-color: transparent;
+        }
+        /* 隐藏 iOS 默认日期输入框的多余修饰 */
+        input[type="date"] {
+            position: relative;
+            -webkit-appearance: none;
+            min-height: 2.75rem;
+        }
+        /* 解决 Safari 安全区域间距问题 */
+        .safe-pb {
+            padding-bottom: calc(1rem + env(safe-area-inset-bottom));
+        }
+        /* 滚动条美化 */
+        ::-webkit-scrollbar {
+            width: 4px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 9999px;
+        }
+        /* 闪烁高亮动画（用于引导用户注意力） */
+        @keyframes focusPulse {
+            0%, 100% { border-color: #e2e8f0; box-shadow: none; }
+            50% { border-color: #4f46e5; box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.2); }
+        }
+        .focus-attention {
+            animation: focusPulse 1.6s ease-in-out 2;
+        }
+    </style>
+</head>
+<body class="h-full font-sans antialiased text-slate-800">
+
+    <!-- 主容器 -->
+    <div class="mx-auto max-w-md min-h-full flex flex-col bg-white shadow-lg relative pb-12">
+        
+        <!-- 头部 Navigation Bar -->
+        <header class="sticky top-0 z-40 bg-white/90 backdrop-blur-md border-b border-slate-100 px-4 py-3 flex items-center justify-between">
+            <div class="flex items-center space-x-2">
+                <div class="bg-indigo-600 text-white p-1.5 rounded-xl shadow-sm">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                </div>
+                <h1 class="text-lg font-bold tracking-tight text-slate-900">预算日均计算器</h1>
+            </div>
+            
+            <button id="toggleSettingsBtn" class="p-2 text-slate-500 hover:text-indigo-600 rounded-full hover:bg-slate-50 transition active:scale-95" title="预算与周期设置">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                </svg>
+            </button>
+        </header>
+
+        <!-- 自定义吐司提示组件 (iOS风格) -->
+        <div id="toast" class="fixed top-16 left-1/2 -translate-x-1/2 z-50 bg-slate-900/95 text-white text-sm py-2.5 px-5 rounded-full shadow-lg flex items-center space-x-2 transition-all duration-300 opacity-0 pointer-events-none scale-90">
+            <span id="toastMessage">提示信息</span>
+        </div>
+
+        <!-- 页面主内容 -->
+        <main class="flex-1 px-4 py-4 space-y-4">
+            
+            <!-- 核心状态卡片 (今日平均还可花) - 确保渲染 bg-gradient-to-br 类 -->
+            <div id="dailyHeroCard" class="relative overflow-hidden rounded-3xl p-6 shadow-md border transition-all duration-500 bg-gradient-to-br from-indigo-600 to-blue-700 text-white border-transparent">
+                <div class="relative z-10">
+                    <p class="text-xs uppercase tracking-wider font-semibold text-white/80" id="heroLabel">今日剩余可支配额度</p>
+                    <div class="mt-2 flex items-baseline">
+                        <span class="text-2xl font-semibold text-white/90">￥</span>
+                        <span id="statRemainingDaily" class="text-4xl font-extrabold tracking-tight ml-0.5 text-white">0.00</span>
+                    </div>
+                    
+                    <!-- 动态今日已花消费提示 -->
+                    <p id="todaySpentTip" class="text-xs text-white/90 mt-2.5 font-medium hidden">
+                        今日已消费 ￥0.00 (已直接从今日额度中扣除)
+                    </p>
+                    
+                    <!-- 状态辅助词 -->
+                    <div class="mt-4 flex items-center space-x-2 bg-white/20 backdrop-blur-md rounded-full px-3 py-1 w-max">
+                        <span id="statusIndicatorDot" class="w-2.5 h-2.5 rounded-full bg-white animate-pulse"></span>
+                        <span id="statusIndicatorText" class="text-xs font-semibold text-white">额度充足</span>
+                    </div>
+                </div>
+                
+                <!-- 背景几何图形点缀 -->
+                <div class="absolute -right-6 -bottom-6 w-32 h-32 rounded-full bg-white/10 blur-xl"></div>
+                <div class="absolute -left-12 -top-12 w-40 h-40 rounded-full bg-black/5 blur-2xl"></div>
+            </div>
+
+            <!-- 数据统计格子 -->
+            <div class="grid grid-cols-2 gap-3">
+                <!-- 剩余可用预算：增加一键修改总预算的快捷入口 -->
+                <div class="bg-slate-50 border border-slate-100 rounded-2xl p-4 relative group">
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs font-medium text-slate-500">剩余可用预算</span>
+                        <!-- 铅笔快捷修改按钮 -->
+                        <button onclick="quickFocusBudget()" class="text-indigo-600 hover:text-indigo-800 p-1 rounded-md hover:bg-indigo-50 transition active:scale-90 flex items-center space-x-0.5" title="快速修改预算">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path>
+                            </svg>
+                            <span class="text-[10px] font-semibold">修改</span>
+                        </button>
+                    </div>
+                    <p class="text-lg font-bold text-slate-900 mt-1" id="statRemainingBudget">￥0.00</p>
+                    <div class="w-full bg-slate-200 rounded-full h-1.5 mt-2 overflow-hidden">
+                        <div id="budgetProgressBar" class="bg-indigo-600 h-1.5 rounded-full transition-all duration-500" style="width: 0%"></div>
+                    </div>
+                </div>
+
+                <div class="bg-slate-50 border border-slate-100 rounded-2xl p-4">
+                    <p class="text-xs font-medium text-slate-500">已消费总金额</p>
+                    <p class="text-lg font-bold text-slate-900 mt-1" id="statTotalSpent">￥0.00</p>
+                    <p class="text-xs text-slate-400 mt-2" id="budgetUsagePercent">已使用 0%</p>
+                </div>
+
+                <div class="bg-slate-50 border border-slate-100 rounded-2xl p-4">
+                    <p class="text-xs font-medium text-slate-500">剩余天数</p>
+                    <p class="text-lg font-bold text-slate-900 mt-1">
+                        <span id="statRemainingWorkdays">0</span> <span class="text-xs font-normal text-slate-400">/ <span id="statTotalWorkdays">0</span> 天</span>
+                    </p>
+                    <p class="text-xs text-slate-400 mt-2" id="daysTypeLabel">已排除周六、周日</p>
+                </div>
+
+                <div class="bg-slate-50 border border-slate-100 rounded-2xl p-4">
+                    <p class="text-xs font-medium text-slate-500">最新剩余日均</p>
+                    <p class="text-lg font-bold text-indigo-600 mt-1" id="statOriginalDailyBudget">￥0.00</p>
+                    <p class="text-[10px] text-slate-400 mt-2" id="initialPlanDailyLabel">初始计划：￥0.00/天</p>
+                </div>
+            </div>
+
+            <!-- 预算与周期设置区 (默认折叠，点击右上角齿轮或快捷键时平滑展开) -->
+            <section id="settingsSection" class="hidden bg-slate-50 rounded-2xl border border-slate-200/80 p-4 space-y-4 transition-all duration-300">
+                <div class="flex items-center justify-between border-b border-slate-200 pb-2">
+                    <h3 class="font-bold text-slate-900 flex items-center space-x-1.5 text-sm">
+                        <svg class="w-4 h-4 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"></path>
+                        </svg>
+                        <span>周期与预算参数设置</span>
+                    </h3>
+                    <button id="closeSettingsBtn" class="text-xs text-slate-400 hover:text-slate-600 font-semibold">隐藏</button>
+                </div>
+
+                <div class="space-y-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">总预算额度 (元)</label>
+                        <div class="relative rounded-xl shadow-sm">
+                            <input type="number" id="inputBudget" class="w-full bg-white border border-slate-200 rounded-xl pl-3 pr-20 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all" placeholder="例如：3000" pattern="[0-9]*" inputmode="numeric">
+                            <div class="absolute inset-y-0 right-0 flex items-center pr-2 space-x-1">
+                                <button type="button" onclick="adjustInputBudget(-100)" class="px-1.5 py-1 bg-slate-100 hover:bg-slate-200 rounded text-[10px] font-bold text-slate-600">-100</button>
+                                <button type="button" onclick="adjustInputBudget(100)" class="px-1.5 py-1 bg-slate-100 hover:bg-slate-200 rounded text-[10px] font-bold text-slate-600">+100</button>
+                            </div>
+                        </div>
+                        <!-- 快速调节大额度按钮 -->
+                        <div class="flex space-x-2 mt-2">
+                            <button type="button" onclick="adjustInputBudget(-1000)" class="flex-1 py-1 bg-slate-100 hover:bg-slate-200 active:scale-95 text-[10px] text-slate-500 font-semibold rounded-lg">-1000 元</button>
+                            <button type="button" onclick="adjustInputBudget(1000)" class="flex-1 py-1 bg-slate-100 hover:bg-slate-200 active:scale-95 text-[10px] text-slate-500 font-semibold rounded-lg">+1000 元</button>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-600 mb-1">开始日期</label>
+                            <input type="date" id="inputStartDate" class="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-base focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-600 mb-1">结束日期</label>
+                            <input type="date" id="inputEndDate" class="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-base focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                        </div>
+                    </div>
+
+                    <div class="flex items-center space-x-2 py-1">
+                        <input type="checkbox" id="inputExcludeWeekends" class="w-4 h-4 rounded text-indigo-600 border-slate-300 focus:ring-indigo-500" checked>
+                        <label for="inputExcludeWeekends" class="text-xs font-medium text-slate-600 select-none">自动排除周六、日</label>
+                    </div>
+
+                    <button id="saveSettingsBtn" class="w-full bg-indigo-600 active:scale-95 text-white font-semibold py-3 rounded-xl shadow-md shadow-indigo-100 hover:bg-indigo-700 transition flex items-center justify-center space-x-1.5 text-sm">
+                        <span>保存设置，重算周期</span>
+                    </button>
+                </div>
+            </section>
+
+            <!-- 新增消费区 -->
+            <section class="bg-slate-50/60 rounded-2xl border border-slate-100 p-4 space-y-3">
+                <h3 class="font-bold text-slate-900 flex items-center space-x-1.5 text-sm">
+                    <svg class="w-4 h-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                    <span>记一笔消费</span>
+                </h3>
+
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-500 mb-1">金额 (元)</label>
+                        <input type="number" id="expenseAmount" class="w-full bg-white border border-slate-200 rounded-xl px-3 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" placeholder="0.00" step="any" inputmode="decimal">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-500 mb-1">消费日期</label>
+                        <input type="date" id="expenseDate" class="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-base focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-500 mb-1">备注信息</label>
+                    <input type="text" id="expenseNote" class="w-full bg-white border border-slate-200 rounded-xl px-3 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" placeholder="例：午餐、地铁、咖啡（可选）">
+                </div>
+
+                <button id="addExpenseBtn" class="w-full bg-slate-900 active:scale-95 text-white font-semibold py-3 rounded-xl shadow-md transition flex items-center justify-center space-x-1.5 text-sm">
+                    <span>添加这条记录</span>
+                </button>
+            </section>
+
+            <!-- 消费明细列表区 -->
+            <section class="space-y-2">
+                <div class="flex items-center justify-between">
+                    <h3 class="font-bold text-slate-900 flex items-center space-x-1.5 text-sm">
+                        <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path>
+                        </svg>
+                        <span>本周期消费清单</span>
+                    </h3>
+                    <span id="expenseCountBadge" class="bg-slate-100 text-slate-600 font-semibold px-2.5 py-0.5 rounded-full text-xs">0 笔</span>
+                </div>
+
+                <!-- 消费记录占位/空白 -->
+                <div id="emptyState" class="hidden border-2 border-dashed border-slate-100 rounded-2xl py-10 px-4 text-center">
+                    <p class="text-sm text-slate-400">目前还没有录入消费记录</p>
+                    <p class="text-xs text-slate-300 mt-1">在上面输入金额快速记一笔吧！</p>
+                </div>
+
+                <!-- 实际记录列表 -->
+                <div id="expenseList" class="space-y-2 max-h-[350px] overflow-y-auto pr-1">
+                    <!-- JS动态填充内容 -->
+                </div>
+            </section>
+
+        </main>
+
+        <!-- 页脚 / 导入导出 JSON 功能区域 -->
+        <footer class="mt-auto px-4 pt-4 border-t border-slate-100 bg-slate-50/50 safe-pb">
+            <div class="flex justify-between items-center text-xs text-slate-400">
+                <span>本地数据绝对隐私安全</span>
+                <div class="flex space-x-3">
+                    <button id="exportBtn" class="text-indigo-600 hover:underline font-medium">备份数据 (导出)</button>
+                    <span>|</span>
+                    <button id="importBtn" class="text-indigo-600 hover:underline font-medium">恢复数据 (导入)</button>
+                </div>
+            </div>
+            <p class="text-center text-[10px] text-slate-300 mt-3">预算日均计算器 v1.4 • 完美对比度修复版</p>
+            <!-- 隐藏的导入文件控件 -->
+            <input type="file" id="importFileInput" accept=".json" class="hidden">
+        </footer>
+    </div>
+
+    <!-- 自定义确认删除模态框 -->
+    <div id="confirmModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm opacity-0 pointer-events-none transition-opacity duration-300">
+        <div class="bg-white rounded-3xl p-5 max-w-xs w-full shadow-2xl transform scale-95 transition-transform duration-300">
+            <h4 class="font-bold text-slate-900 text-base text-center">确认删除此项吗？</h4>
+            <p class="text-xs text-slate-500 mt-2 text-center">此操作将永久移除该消费记录，并立即重算本日均剩余预算。</p>
+            <div class="flex space-x-3 mt-5">
+                <button id="cancelDeleteBtn" class="flex-1 py-2.5 bg-slate-100 active:bg-slate-200 text-slate-700 font-semibold rounded-xl text-xs">取消</button>
+                <button id="confirmDeleteBtn" class="flex-1 py-2.5 bg-rose-600 active:bg-rose-700 text-white font-semibold rounded-xl text-xs">确认删除</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 逻辑代码 -->
+    <script>
+        // --- 1. 数据常量与全局变量 ---
+        const LOCAL_STORAGE_KEY = 'budget-tracker-data';
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'budget-tracker-default';
+
+        // 动态计算当月的第一天和最后一天，实现真正的滚动周期重算体验
+        function getDefaultBudgetPeriod() {
+            const today = new Date();
+            const year = today.getFullYear();
+            const month = today.getMonth(); // 当前月份 (0-11)
+            
+            const firstDay = new Date(year, month, 1);
+            const lastDay = new Date(year, month + 1, 0); // 下个月的第0天即为本月最后一天
+            
+            return {
+                startDate: formatLocalDate(firstDay),
+                endDate: formatLocalDate(lastDay)
+            };
+        }
+
+        const defaultPeriod = getDefaultBudgetPeriod();
+
+        // 默认初始化数据 (采用当月动态默认日期)
+        const defaultData = {
+            budget: 3000,
+            startDate: defaultPeriod.startDate,
+            endDate: defaultPeriod.endDate,
+            excludeWeekends: true,
+            expenses: []
+        };
+
+        // 当前应用状态
+        let appData = { ...defaultData };
+        let pendingDeleteId = null; // 挂起等待删除的记录ID
+
+        // --- 2. 核心日期和计算逻辑 ---
+
+        // 安全地解析本地日期 (排除时区干扰)
+        function parseLocalDate(dateStr) {
+            if (!dateStr) return new Date();
+            const [year, month, day] = dateStr.split("-").map(Number);
+            return new Date(year, month - 1, day);
+        }
+
+        // 格式化日期显示：YYYY-MM-DD
+        function formatLocalDate(dateObj) {
+            const year = dateObj.getFullYear();
+            const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+            const day = String(dateObj.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        }
+
+        // 计算周一至周五工作日总数
+        function countWeekdays(startDate, endDate) {
+            if (startDate > endDate) return 0;
+            let count = 0;
+            const current = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate());
+
+            while (current <= endDate) {
+                const day = current.getDay();
+                // 0 是周日，6 是周六
+                if (day !== 0 && day !== 6) {
+                    count++;
+                }
+                current.setDate(current.getDate() + 1);
+            }
+            return count;
+        }
+
+        // 计算自然日数量 (未勾选排除周末时使用)
+        function countCalendarDays(startDate, endDate) {
+            if (startDate > endDate) return 0;
+            const oneDayMs = 24 * 60 * 60 * 1000;
+            const d1 = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate());
+            const d2 = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate());
+            return Math.round((d2 - d1) / oneDayMs) + 1;
+        }
+
+        // 累加总消费金额
+        function calculateTotalSpent(expenses) {
+            return expenses.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+        }
+
+        // 累加【今天】消费的金额，用于精准从今日额度中直接扣除
+        function calculateTodaySpent(expenses, todayStr) {
+            return expenses
+                .filter(item => item.date === todayStr)
+                .reduce((sum, item) => sum + Number(item.amount || 0), 0);
+        }
+
+        // 核心统计算法
+        function calculateStats(data) {
+            const budget = Number(data.budget || 0);
+            const startDate = parseLocalDate(data.startDate);
+            const endDate = parseLocalDate(data.endDate);
+            const exclude = data.excludeWeekends;
+
+            // 1. 计算总规划天数
+            const totalPlanningDays = exclude 
+                ? countWeekdays(startDate, endDate) 
+                : countCalendarDays(startDate, endDate);
+
+            // 2. 总共消费了多少钱
+            const totalSpent = calculateTotalSpent(data.expenses);
+            // 剩余总资金
+            const remainingBudget = budget - totalSpent;
+
+            // 3. 获取今天的日期 (只取年月日)
+            const today = new Date();
+            const todayDate = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+            const todayStr = formatLocalDate(todayDate);
+
+            // 4. 计算今天一天，截止到现在总共消费了多少钱
+            const todaySpent = calculateTodaySpent(data.expenses, todayStr);
+
+            // 5. 计算今日起，剩余的工作/自然日
+            const remainingStartDate = todayDate > startDate ? todayDate : startDate;
+            
+            let remainingPlanningDays = 0;
+            if (remainingStartDate <= endDate) {
+                remainingPlanningDays = exclude
+                    ? countWeekdays(remainingStartDate, endDate)
+                    : countCalendarDays(remainingStartDate, endDate);
+            }
+
+            // 计算原始计划日均预算 (总预算 / 总规划天数)
+            const originalDailyBudget = totalPlanningDays > 0 ? budget / totalPlanningDays : 0;
+
+            // 6. 今日剩余可支配额度 (今天内实时抵扣)
+            // 今日可支配 = (剩余可用预算 + 今天已花) / 剩余天数 - 今天已花
+            let remainingDailyBudget = 0;
+            if (remainingPlanningDays > 0) {
+                remainingDailyBudget = ((remainingBudget + todaySpent) / remainingPlanningDays) - todaySpent;
+            } else {
+                remainingDailyBudget = remainingBudget;
+            }
+
+            // 7. 【最新剩余日均】(明天起平均能花多少，随着每一笔消费和天数过去实时更新)
+            const futureDailyBudget = remainingPlanningDays > 0 ? (remainingBudget / remainingPlanningDays) : 0;
+
+            return {
+                totalPlanningDays,
+                totalSpent,
+                remainingBudget,
+                remainingPlanningDays,
+                originalDailyBudget,
+                remainingDailyBudget,
+                futureDailyBudget,
+                todaySpent
+            };
+        }
+
+        // --- 3. UI 交互与渲染引擎 ---
+
+        // 显示自定义 Toast 提示
+        let toastTimeout;
+        function showToast(message) {
+            const toast = document.getElementById('toast');
+            const toastMsg = document.getElementById('toastMessage');
+            
+            toastMsg.innerText = message;
+            toast.classList.remove('opacity-0', 'scale-90', 'pointer-events-none');
+            toast.classList.add('opacity-100', 'scale-100');
+
+            clearTimeout(toastTimeout);
+            toastTimeout = setTimeout(() => {
+                toast.classList.add('opacity-0', 'scale-90', 'pointer-events-none');
+                toast.classList.remove('opacity-100', 'scale-100');
+            }, 2500);
+        }
+
+        // 从本地加载数据
+        function loadData() {
+            try {
+                const raw = localStorage.getItem(LOCAL_STORAGE_KEY);
+                if (raw) {
+                    appData = JSON.parse(raw);
+                    if (appData.excludeWeekends === undefined) appData.excludeWeekends = true;
+                    if (!appData.expenses) appData.expenses = [];
+                } else {
+                    appData = { ...defaultData };
+                    saveDataToStorage();
+                }
+            } catch (err) {
+                console.error("加载数据错误:", err);
+                appData = { ...defaultData };
+            }
+        }
+
+        // 存储数据
+        function saveDataToStorage() {
+            localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(appData));
+        }
+
+        // 快捷微调总预算输入框
+        function adjustInputBudget(amount) {
+            const input = document.getElementById('inputBudget');
+            let currentVal = Number(input.value) || 0;
+            currentVal += amount;
+            if (currentVal < 0) currentVal = 0;
+            input.value = currentVal;
+            
+            // 顺便触发呼吸动画，提醒用户点击保存
+            input.classList.remove('focus-attention');
+            void input.offsetWidth; // 触发回流重绘以重置动画
+            input.classList.add('focus-attention');
+        }
+
+        // 快捷键修改预算：高亮并平滑定位至预算输入区
+        function quickFocusBudget() {
+            const settingsSection = document.getElementById('settingsSection');
+            const inputBudget = document.getElementById('inputBudget');
+            
+            // 如果处于折叠状态，先强制展开
+            if (settingsSection.classList.contains('hidden')) {
+                settingsSection.classList.remove('hidden');
+                showToast('已为您展开预算参数配置面板');
+            }
+            
+            // 平滑滚动定位，让单手操作体验极佳
+            settingsSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            
+            // 聚焦并追加视觉呼吸引导动画
+            setTimeout(() => {
+                inputBudget.focus();
+                inputBudget.select();
+                inputBudget.classList.remove('focus-attention');
+                void inputBudget.offsetWidth; // 重启 CSS 动画
+                inputBudget.classList.add('focus-attention');
+            }, 300);
+        }
+
+        // 全面渲染整个页面
+        function renderPage() {
+            const stats = calculateStats(appData);
+
+            // 1. 设置面板字段初始化/回显
+            document.getElementById('inputBudget').value = appData.budget;
+            document.getElementById('inputStartDate').value = appData.startDate;
+            document.getElementById('inputEndDate').value = appData.endDate;
+            document.getElementById('inputExcludeWeekends').checked = appData.excludeWeekends;
+
+            // 2. 更新首要的大字状态展示：今日起每日平均可花
+            const dailyEl = document.getElementById('statRemainingDaily');
+            dailyEl.innerText = stats.remainingDailyBudget.toFixed(2);
+
+            const heroLabel = document.getElementById('heroLabel');
+            if (stats.remainingPlanningDays <= 0) {
+                heroLabel.innerText = "本周期已结束，剩余可用预算";
+            } else {
+                heroLabel.innerText = "今日剩余可支配额度";
+            }
+
+            // 更新今日消费提示
+            const todaySpentTip = document.getElementById('todaySpentTip');
+            if (stats.todaySpent > 0 && stats.remainingPlanningDays > 0) {
+                todaySpentTip.innerText = `今日已消费 ￥${stats.todaySpent.toFixed(2)} (已从今日额度中直接扣除)`;
+                todaySpentTip.classList.remove('hidden');
+            } else {
+                todaySpentTip.classList.add('hidden');
+            }
+
+            // 【完全修复对比度 Bug】：使用 bg-gradient-to-br 类和严格对应的深色高保真背景色，提升对比度
+            const card = document.getElementById('dailyHeroCard');
+            const dot = document.getElementById('statusIndicatorDot');
+            const text = document.getElementById('statusIndicatorText');
+
+            // 必须重新加上 bg-gradient-to-br，否则渐变色不生效、导致白底白字！
+            card.className = "relative overflow-hidden rounded-3xl p-6 shadow-md border transition-all duration-500 text-white border-transparent bg-gradient-to-br ";
+            dot.className = "w-2.5 h-2.5 rounded-full animate-pulse ";
+
+            if (stats.remainingBudget < 0) {
+                // 总预算超支：高饱度警示红
+                card.classList.add("from-rose-600", "to-red-800");
+                dot.classList.add("bg-red-200");
+                text.innerText = "预算已超支！";
+            } else if (stats.remainingDailyBudget < 0) {
+                // 今日超支状态：热烈橙红色
+                card.classList.add("from-amber-600", "to-rose-600");
+                dot.classList.add("bg-orange-200");
+                text.innerText = "今日额度已透支";
+            } else if (stats.remainingDailyBudget < stats.originalDailyBudget * 0.8) {
+                // 预算偏紧状态：明朗温暖橙
+                card.classList.add("from-amber-500", "to-orange-600");
+                dot.classList.add("bg-amber-100");
+                text.innerText = "今日余额偏紧";
+            } else {
+                // 正常充足状态：尊贵优雅靛蓝
+                card.classList.add("from-indigo-600", "to-blue-700");
+                dot.classList.add("bg-indigo-200");
+                text.innerText = "今日额度充足";
+            }
+
+            // 3. 统计格子信息填入
+            document.getElementById('statRemainingBudget').innerText = `￥${stats.remainingBudget.toFixed(2)}`;
+            document.getElementById('statTotalSpent').innerText = `￥${stats.totalSpent.toFixed(2)}`;
+            document.getElementById('statRemainingWorkdays').innerText = stats.remainingPlanningDays;
+            document.getElementById('statTotalWorkdays').innerText = stats.totalPlanningDays;
+            
+            // 重要修改：将“本期计划日均”变为动态重新计算的“最新剩余日均”
+            document.getElementById('statOriginalDailyBudget').innerText = `￥${stats.futureDailyBudget.toFixed(2)}`;
+            // 附带显示初始计划作为小字参考
+            document.getElementById('initialPlanDailyLabel').innerText = `初始计划：￥${stats.originalDailyBudget.toFixed(2)}/天`;
+
+            // 更新排除周末文字
+            document.getElementById('daysTypeLabel').innerText = appData.excludeWeekends ? "已排除周六、周日" : "包含周六、周日";
+
+            // 预算百分比进度条
+            const spendPercent = appData.budget > 0 ? (stats.totalSpent / appData.budget) * 100 : 0;
+            const progressPercent = Math.min(Math.max(spendPercent, 0), 100);
+            const progressBar = document.getElementById('budgetProgressBar');
+            progressBar.style.width = `${progressPercent}%`;
+            
+            // 进度条颜色根据进度自动变红
+            if (progressPercent >= 100) {
+                progressBar.className = "bg-rose-600 h-1.5 rounded-full transition-all duration-500";
+            } else if (progressPercent >= 80) {
+                progressBar.className = "bg-amber-500 h-1.5 rounded-full transition-all duration-500";
+            } else {
+                progressBar.className = "bg-indigo-600 h-1.5 rounded-full transition-all duration-500";
+            }
+
+            document.getElementById('budgetUsagePercent').innerText = `已使用 ${progressPercent.toFixed(0)}%`;
+
+            // 4. 渲染明细消费列表
+            const expenseList = document.getElementById('expenseList');
+            const emptyState = document.getElementById('emptyState');
+            const countBadge = document.getElementById('expenseCountBadge');
+
+            if (appData.expenses.length === 0) {
+                expenseList.innerHTML = '';
+                emptyState.classList.remove('hidden');
+                countBadge.innerText = '0 笔';
+            } else {
+                emptyState.classList.add('hidden');
+                countBadge.innerText = `${appData.expenses.length} 笔`;
+
+                // 将消费记录按日期从新到旧排序
+                const sortedExpenses = [...appData.expenses].sort((a, b) => {
+                    return parseLocalDate(b.date) - parseLocalDate(a.date) || Number(b.id) - Number(a.id);
+                });
+
+                expenseList.innerHTML = sortedExpenses.map(item => {
+                    return `
+                        <div class="bg-white border border-slate-100 rounded-xl p-3 flex items-center justify-between shadow-sm transition active:bg-slate-50">
+                            <div class="space-y-1 pr-4 truncate">
+                                <div class="flex items-center space-x-2">
+                                    <span class="text-xs text-slate-400 font-medium">${item.date}</span>
+                                    ${item.note ? `<span class="bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded text-[10px] truncate max-w-[120px]">${item.note}</span>` : ''}
+                                </div>
+                                <div class="text-sm font-semibold text-slate-800 truncate">
+                                    ${item.note || '日常消费'}
+                                </div>
+                            </div>
+                            <div class="flex items-center space-x-3 shrink-0">
+                                <span class="text-sm font-bold text-slate-900">￥${Number(item.amount).toFixed(2)}</span>
+                                <button onclick="openDeleteModal('${item.id}')" class="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition" title="删除记录">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            }
+        }
+
+        // --- 4. 模态框交互逻辑 ---
+
+        function openDeleteModal(id) {
+            pendingDeleteId = id;
+            const modal = document.getElementById('confirmModal');
+            modal.classList.remove('opacity-0', 'pointer-events-none');
+            modal.querySelector('div').classList.remove('scale-95');
+            modal.querySelector('div').classList.add('scale-100');
+        }
+
+        function closeDeleteModal() {
+            pendingDeleteId = null;
+            const modal = document.getElementById('confirmModal');
+            modal.classList.add('opacity-0', 'pointer-events-none');
+            modal.querySelector('div').classList.add('scale-95');
+            modal.querySelector('div').classList.remove('scale-100');
+        }
+
+        // --- 5. 事件监听与绑定 ---
+
+        window.addEventListener('DOMContentLoaded', () => {
+            // 初始化系统时间设定
+            const todayStr = formatLocalDate(new Date());
+            document.getElementById('expenseDate').value = todayStr;
+
+            // 加载配置并渲染页面
+            loadData();
+            renderPage();
+
+            // 齿轮展开设置面板
+            const toggleSettingsBtn = document.getElementById('toggleSettingsBtn');
+            const settingsSection = document.getElementById('settingsSection');
+            const closeSettingsBtn = document.getElementById('closeSettingsBtn');
+
+            toggleSettingsBtn.addEventListener('click', () => {
+                settingsSection.classList.toggle('hidden');
+                if (!settingsSection.classList.contains('hidden')) {
+                    settingsSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
+            });
+
+            closeSettingsBtn.addEventListener('click', () => {
+                settingsSection.classList.add('hidden');
+            });
+
+            // 保存设置
+            const saveSettingsBtn = document.getElementById('saveSettingsBtn');
+            saveSettingsBtn.addEventListener('click', () => {
+                const budgetInput = document.getElementById('inputBudget').value.trim();
+                const startDateStr = document.getElementById('inputStartDate').value;
+                const MathEndDateStr = document.getElementById('inputEndDate').value;
+                const exclude = document.getElementById('inputExcludeWeekends').checked;
+
+                // 严密数据校验
+                const budget = Number(budgetInput);
+                if (isNaN(budget) || budget <= 0) {
+                    showToast('总预算额度必须是大于0的数值');
+                    return;
+                }
+                if (!startDateStr) {
+                    showToast('开始日期不能为空');
+                    return;
+                }
+                if (!MathEndDateStr) {
+                    showToast('结束日期不能为空');
+                    return;
+                }
+
+                const sDate = parseLocalDate(startDateStr);
+                const eDate = parseLocalDate(MathEndDateStr);
+
+                if (eDate < sDate) {
+                    showToast('结束日期不能早于开始日期');
+                    return;
+                }
+
+                // 确认保存
+                appData.budget = budget;
+                appData.startDate = startDateStr;
+                appData.endDate = MathEndDateStr;
+                appData.excludeWeekends = exclude;
+
+                saveDataToStorage();
+                renderPage();
+                showToast('周期预算设置保存成功');
+                settingsSection.classList.add('hidden');
+            });
+
+            // 添加消费记录
+            const addExpenseBtn = document.getElementById('addExpenseBtn');
+            addExpenseBtn.addEventListener('click', () => {
+                const amountInput = document.getElementById('expenseAmount').value.trim();
+                const expenseDateStr = document.getElementById('expenseDate').value;
+                const expenseNoteStr = document.getElementById('expenseNote').value.trim();
+
+                const amount = Number(amountInput);
+                if (isNaN(amount) || amount <= 0) {
+                    showToast('请输入有效的消费金额 (大于0)');
+                    return;
+                }
+                if (!expenseDateStr) {
+                    showToast('请选择消费产生的日期');
+                    return;
+                }
+
+                // 创建记录对象
+                const newExpense = {
+                    id: String(Date.now() + Math.random()),
+                    date: expenseDateStr,
+                    amount: amount,
+                    note: expenseNoteStr || ''
+                };
+
+                appData.expenses.push(newExpense);
+                saveDataToStorage();
+                renderPage();
+                showToast('消费记录已成功录入');
+
+                // 清空输入框，重置日期为今天
+                document.getElementById('expenseAmount').value = '';
+                document.getElementById('expenseNote').value = '';
+                document.getElementById('expenseDate').value = formatLocalDate(new Date());
+            });
+
+            // 确认删除与模态框按钮监听
+            document.getElementById('cancelDeleteBtn').addEventListener('click', closeDeleteModal);
+            document.getElementById('confirmDeleteBtn').addEventListener('click', () => {
+                if (pendingDeleteId) {
+                    appData.expenses = appData.expenses.filter(item => item.id !== pendingDeleteId);
+                    saveDataToStorage();
+                    renderPage();
+                    showToast('该消费记录已移除');
+                }
+                closeDeleteModal();
+            });
+
+            // 导入导出 JSON 备份
+            const exportBtn = document.getElementById('exportBtn');
+            exportBtn.addEventListener('click', () => {
+                try {
+                    const dataStr = JSON.stringify(appData, null, 2);
+                    const blob = new Blob([dataStr], { type: 'application/json' });
+                    const url = URL.createObjectURL(blob);
+                    
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `budget-data-${formatLocalDate(new Date())}.json`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                    showToast('数据导出成功，请妥善保管 JSON 文件');
+                } catch (err) {
+                    showToast('导出备份失败');
+                }
+            });
+
+            const importBtn = document.getElementById('importBtn');
+            const importFileInput = document.getElementById('importFileInput');
+            importBtn.addEventListener('click', () => {
+                importFileInput.click();
+            });
+
+            importFileInput.addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+
+                const reader = new FileReader();
+                reader.onload = function(evt) {
+                    try {
+                        const importedObj = JSON.parse(evt.target.result);
+                        
+                        if (importedObj.budget !== undefined && importedObj.startDate && importedObj.endDate && Array.isArray(importedObj.expenses)) {
+                            appData = importedObj;
+                            saveDataToStorage();
+                            renderPage();
+                            showToast('备份数据恢复成功！');
+                        } else {
+                            showToast('JSON 格式不正确，无法还原');
+                        }
+                    } catch (err) {
+                        showToast('读取文件出错或不是有效的 JSON');
+                    }
+                    importFileInput.value = '';
+                };
+                reader.readAsText(file);
+            });
+        });
+    </script>
+</body>
+</html>
